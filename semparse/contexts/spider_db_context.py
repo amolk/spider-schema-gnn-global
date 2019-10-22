@@ -32,13 +32,15 @@ class SpiderDBContext:
     db_knowledge_graph = {}
     db_tables_data = {}
 
-    def __init__(self, db_id: str, utterance: str, tokenizer: Tokenizer, tables_file: str, dataset_path: str):
+    def __init__(self, db_id: str, utterance: str,
+                 utterance_tokenizer: Tokenizer, entity_tokenizer: Tokenizer,
+                 tables_file: str, dataset_path: str):
         self.dataset_path = dataset_path
         self.tables_file = tables_file
         self.db_id = db_id
         self.utterance = utterance
 
-        tokenized_utterance = tokenizer.tokenize(utterance.lower())
+        tokenized_utterance = utterance_tokenizer.tokenize(utterance)
         self.tokenized_utterance = [Token(text=t.text, lemma=t.lemma_) for t in tokenized_utterance]
 
         if db_id not in SpiderDBContext.schemas:
@@ -49,7 +51,13 @@ class SpiderDBContext:
 
         entity_texts = [self.knowledge_graph.entity_text[entity].lower()
                         for entity in self.knowledge_graph.entities]
-        entity_tokens = tokenizer.batch_tokenize(entity_texts)
+
+        self.entity_texts_inline = " [SEP] " + " [SEP] ".join(entity_texts)
+        tokenized_entity_texts_inline = utterance_tokenizer.tokenize(self.entity_texts_inline)
+        self.tokenized_entity_texts_inline = [Token(text=t.text, lemma=t.lemma_) for t in tokenized_entity_texts_inline]
+
+        entity_tokens = entity_tokenizer.batch_tokenize(entity_texts)
+
         self.entity_tokens = [[Token(text=t.text, lemma=t.lemma_) for t in et] for et in entity_tokens]
 
     @staticmethod

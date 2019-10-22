@@ -9,7 +9,8 @@ from allennlp.data import DatasetReader, Tokenizer, TokenIndexer, Field, Instanc
 from allennlp.data.fields import TextField, ProductionRuleField, ListField, IndexField, MetadataField
 from allennlp.data.token_indexers import SingleIdTokenIndexer
 from allennlp.data.tokenizers import WordTokenizer
-from allennlp.data.tokenizers.word_splitter import SpacyWordSplitter
+from allennlp.data.tokenizers.word_splitter import SpacyWordSplitter, BertBasicWordSplitter
+from allennlp.data.vocabulary import Vocabulary
 from overrides import overrides
 from spacy.symbols import ORTH, LEMMA
 
@@ -35,9 +36,8 @@ class SpiderDatasetReader(DatasetReader):
         super().__init__(lazy=lazy)
 
         # default spacy tokenizer splits the common token 'id' to ['i', 'd'], we here write a manual fix for that
-        spacy_tokenizer = SpacyWordSplitter(pos_tags=True)
-        spacy_tokenizer.spacy.tokenizer.add_special_case(u'id', [{ORTH: u'id', LEMMA: u'id'}])
-        self._tokenizer = WordTokenizer(spacy_tokenizer)
+        self._utterance_tokenizer = WordTokenizer(word_splitter=BertBasicWordSplitter())
+        self._entity_tokenizer = self._utterance_tokenizer
 
         self._utterance_token_indexers = question_token_indexers or {'tokens': SingleIdTokenIndexer()}
         self._keep_if_unparsable = keep_if_unparsable
@@ -126,18 +126,39 @@ class SpiderDatasetReader(DatasetReader):
                          db_id: str,
                          sql: List[str] = None):
         fields: Dict[str, Field] = {}
-
-        db_context = SpiderDBContext(db_id, utterance, tokenizer=self._tokenizer,
+        db_context = SpiderDBContext(db_id, utterance, utterance_tokenizer=self._utterance_tokenizer,
+                                     entity_tokenizer=self._entity_tokenizer,
                                      tables_file=self._tables_file, dataset_path=self._dataset_path)
         table_field = SpiderKnowledgeGraphField(db_context.knowledge_graph,
                                                 db_context.tokenized_utterance,
-                                                self._utterance_token_indexers,
+                                                token_indexers=self._utterance_token_indexers,
                                                 entity_tokens=db_context.entity_tokens,
                                                 include_in_vocab=False,
                                                 max_table_tokens=None)
 
         world = SpiderWorld(db_context, query=sql)
         fields["utterance"] = TextField(db_context.tokenized_utterance, self._utterance_token_indexers)
+
+        # find wordpiece tokens for all utterance and entity tokens
+        # note that there could be more wordpiece tokens, and the wordpiece token count
+        # needs to stay within 512 limit
+        tokens = db_context.tokenized_utterance + db_context.tokenized_entity_texts_inline
+        indexer = self._utterance_token_indexers["tokens"]
+        wps = (
+            indexer.wordpiece_tokenizer(token.text.lower())
+            if token.text not in ['[SEP]']
+            else indexer.wordpiece_tokenizer(token.text)
+            for token in tokens
+        )
+
+        # flatten
+        wps = [item for sublist in wps for item in sublist]
+
+        # if too many tokens, don't load this example
+        if len(wps) >= 512:
+            return None
+
+        fields["extended_utterance"] = TextField(tokens, self._utterance_token_indexers)
 
         action_sequence, all_actions = world.get_action_sequence_and_all_actions()
 
