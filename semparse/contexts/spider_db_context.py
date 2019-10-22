@@ -24,7 +24,7 @@ STOP_WORDS = {"", "", "all", "being", "-", "over", "through", "yourselves", "its
               "is", "am", "it", "doesn", "an", "as", "itself", "at", "have", "in", "any", "if", "!",
               "again", "'ll", "no", "that", "when", "same", "how", "other", "which", "you", "many", "shan",
               "'t", "'s", "our", "after", "most", "'d", "such", "'m", "why", "a", "off", "i", "yours", "so",
-              "the", "having", "once"}
+              "the", "having", "once", "id", "is"}
 
 
 class SpiderDBContext:
@@ -59,6 +59,12 @@ class SpiderDBContext:
         entity_tokens = entity_tokenizer.batch_tokenize(entity_texts)
 
         self.entity_tokens = [[Token(text=t.text, lemma=t.lemma_) for t in et] for et in entity_tokens]
+
+    @staticmethod
+    def remove_stopwords(text):
+        parts = text.split(' ')
+        parts = [part for part in parts if part not in STOP_WORDS]
+        return ' '.join(parts)
 
     @staticmethod
     def entity_key_for_column(table_name: str, column: TableColumn) -> str:
@@ -99,14 +105,14 @@ class SpiderDBContext:
         for table in tables:
             table_key = f"table:{table.name.lower()}"
             entities.add(table_key)
-            entity_text[table_key] = table.text
+            entity_text[table_key] = self.remove_stopwords(table.text)
 
             for column in db_schema[table.name].columns:
                 entity_key = self.entity_key_for_column(table.name, column)
                 entities.add(entity_key)
                 neighbors[entity_key].add(table_key)
                 neighbors[table_key].add(entity_key)
-                entity_text[entity_key] = column.text
+                entity_text[entity_key] = self.remove_stopwords(table.text) + '.' + self.remove_stopwords(column.text)
 
         for string_entity, column_keys in string_entities:
             entities.add(string_entity)
