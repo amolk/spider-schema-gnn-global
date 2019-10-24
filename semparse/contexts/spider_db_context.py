@@ -105,14 +105,14 @@ class SpiderDBContext:
         for table in tables:
             table_key = f"table:{table.name.lower()}"
             entities.add(table_key)
-            entity_text[table_key] = self.remove_stopwords(table.text)
+            entity_text[table_key] = table.text
 
             for column in db_schema[table.name].columns:
                 entity_key = self.entity_key_for_column(table.name, column)
                 entities.add(entity_key)
                 neighbors[entity_key].add(table_key)
                 neighbors[table_key].add(entity_key)
-                entity_text[entity_key] = self.remove_stopwords(table.text) + '.' + self.remove_stopwords(column.text)
+                entity_text[entity_key] = table.text + '.' + column.text
 
         for string_entity, column_keys in string_entities:
             entities.add(string_entity)
