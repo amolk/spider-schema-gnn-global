@@ -28,7 +28,6 @@ class SqlState:
         if lhs == 'table_name':
             new_sql_state.tables_used.add(rhs_tokens[0].strip('"'))
         elif lhs == 'column_name':
-            new_sql_state.tables_used_by_columns.add(rhs_tokens[0].strip('"').split('@')[0])
             table_column = rhs_tokens[0].strip('"').split('@')
             new_sql_state.tables_used_by_columns.add(table_column[0])
             new_sql_state.columns_used.add(tuple(table_column))
