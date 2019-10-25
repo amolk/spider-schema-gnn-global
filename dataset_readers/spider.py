@@ -127,7 +127,7 @@ class SpiderDatasetReader(DatasetReader):
                          utterance: str,
                          db_id: str,
                          sql: List[str] = None,
-                         filtered_columns=filtered_columns):
+                         filtered_columns: List[float] = None):
         fields: Dict[str, Field] = {}
 
         if not sql:
