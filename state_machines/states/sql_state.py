@@ -12,6 +12,7 @@ class SqlState:
         self.action_history = []
         self.tables_used = set()
         self.tables_used_by_columns = set()
+        self.columns_used = set()
         self.current_stack = []
         self.subqueries_stack = []
         self.enabled = enabled
@@ -28,13 +29,18 @@ class SqlState:
             new_sql_state.tables_used.add(rhs_tokens[0].strip('"'))
         elif lhs == 'column_name':
             new_sql_state.tables_used_by_columns.add(rhs_tokens[0].strip('"').split('@')[0])
+            table_column = rhs_tokens[0].strip('"').split('@')
+            new_sql_state.tables_used_by_columns.add(table_column[0])
+            new_sql_state.columns_used.add(tuple(table_column))
         elif lhs == 'iue':
             new_sql_state.tables_used_by_columns = set()
             new_sql_state.tables_used = set()
+            new_sql_state.columns_used = set()
         elif lhs == "source_subq":
             new_sql_state.subqueries_stack.append(copy.deepcopy(new_sql_state))
             new_sql_state.tables_used = set()
             new_sql_state.tables_used_by_columns = set()
+            new_sql_state.columns_used = set()
 
         new_sql_state.action_history.append(production_rule)
 

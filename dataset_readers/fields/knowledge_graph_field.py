@@ -55,13 +55,14 @@ class SpiderKnowledgeGraphField(KnowledgeGraphField):
             for token_index, token in enumerate(self.utterance_tokens):
                 entity_token_features = linking_features[entity_id][token_index]
                 for feature_index, feature_extractor in enumerate(self._feature_extractors):
-                    neighbour_features = []
-                    for neighbor in self.knowledge_graph.neighbors[entity]:
-                        # we only care about table/columns relations here, not foreign-primary
-                        if entity.startswith('column') and neighbor.startswith('column'):
-                            continue
-                        neighbor_index = entity_to_index_map[neighbor]
-                        neighbour_features.append(non_related_features[neighbor_index][token_index][feature_index])
+                    if entity in self.knowledge_graph.neighbors:
+                        neighbour_features = []
+                        for neighbor in self.knowledge_graph.neighbors[entity]:
+                            # we only care about table/columns relations here, not foreign-primary
+                            if entity.startswith('column') and neighbor.startswith('column'):
+                                continue
+                            neighbor_index = entity_to_index_map[neighbor]
+                            neighbour_features.append(non_related_features[neighbor_index][token_index][feature_index])
 
-                    entity_token_features.append(max(neighbour_features))
+                        entity_token_features.append(max(neighbour_features))
         return linking_features

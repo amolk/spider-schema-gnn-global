@@ -1,3 +1,5 @@
+import copy
+import random
 import re
 from collections import Set, defaultdict
 from typing import Dict, Tuple, List
@@ -34,7 +36,7 @@ class SpiderDBContext:
 
     def __init__(self, db_id: str, utterance: str,
                  utterance_tokenizer: Tokenizer, entity_tokenizer: Tokenizer,
-                 tables_file: str, dataset_path: str):
+                 tables_file: str, dataset_path: str, filtered_columns: List[float] = None):
         self.dataset_path = dataset_path
         self.tables_file = tables_file
         self.db_id = db_id
@@ -45,7 +47,31 @@ class SpiderDBContext:
 
         if db_id not in SpiderDBContext.schemas:
             SpiderDBContext.schemas = read_dataset_schema(self.tables_file)
-        self.schema = SpiderDBContext.schemas[db_id]
+
+        if filtered_columns:
+            used_columns = defaultdict(set)
+            db = SpiderDBContext.schemas[db_id]
+            # print("---- BEFORE ----")
+            # self.print_schema(db)
+            for filtered_column in filtered_columns:
+                if filtered_column != '*': # skip '*' column
+                    table, column = filtered_column.split('@')
+                    used_columns[table.lower()].add(column.lower())
+
+            self.schema = {}
+            for table in used_columns.keys():
+                table_data = self.lookup_case_insensitive(table, db)
+                if not table_data:
+                    continue
+                table_name = table_data.name
+                self.schema[table_name] = copy.deepcopy(table_data)
+                self.schema[table_name].columns = [column for column in self.schema[table_name].columns if column.name in used_columns[table]]
+
+            # print("---- AFTER ----")
+            # self.print_schema(self.schema)
+        else:
+            self.schema = SpiderDBContext.schemas[db_id]
+            # self.print_schema(self.schema)
 
         self.knowledge_graph = self.get_db_knowledge_graph(db_id)
 
@@ -59,6 +85,21 @@ class SpiderDBContext:
         entity_tokens = entity_tokenizer.batch_tokenize(entity_texts)
 
         self.entity_tokens = [[Token(text=t.text, lemma=t.lemma_) for t in et] for et in entity_tokens]
+
+    @staticmethod
+    def print_schema(schema):
+        for table_name in schema.keys():
+            print("Table", table_name)
+            for column in schema[table_name].columns:
+                print("    - ", column.name)
+
+    @staticmethod
+    def lookup_case_insensitive(lookup_key: str, lookup_dict: Dict):
+        for key in lookup_dict.keys():
+            if key.lower() == lookup_key:
+                return lookup_dict[key]
+
+        return None
 
     @staticmethod
     def remove_stopwords(text):
@@ -85,8 +126,8 @@ class SpiderDBContext:
         db_schema = self.schema
         tables = db_schema.values()
 
-        if db_id not in self.db_tables_data:
-            self.db_tables_data[db_id] = read_dataset_values(db_id, self.dataset_path, tables)
+        # Always load because we use different subsets of tables and columns
+        self.db_tables_data[db_id] = read_dataset_values(db_id, self.dataset_path, tables)
 
         tables_data = self.db_tables_data[db_id]
 
@@ -130,7 +171,11 @@ class SpiderDBContext:
                 other_column_table, other_column_name = column.foreign_key.split(':')
 
                 # must have exactly one by design
-                other_column = [col for col in db_schema[other_column_table].columns if col.name == other_column_name][0]
+                try:
+                    other_column = [col for col in db_schema[other_column_table].columns if col.name == other_column_name][0]
+                except (KeyError, IndexError):
+                    # Partial schema does not include this foreign key
+                    continue
 
                 entity_key = self.entity_key_for_column(table_name, column)
                 other_entity_key = self.entity_key_for_column(other_column_table, other_column)

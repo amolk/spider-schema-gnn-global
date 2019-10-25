@@ -36,6 +36,16 @@ class Table:
         self.text = text
         self.columns = columns
 
+    def get_primary_key(self):
+        pk = None
+        for column in self.columns:
+            if column.is_primary_key:
+                pk = column.name
+
+        if pk is None:
+            pk = self.columns[0].name
+
+        return pk
 
 def read_dataset_schema(schema_path: str) -> Dict[str, List[Table]]:
     schemas: Dict[str, Dict[str, Table]] = defaultdict(dict)

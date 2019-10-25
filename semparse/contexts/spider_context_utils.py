@@ -44,10 +44,14 @@ def initialize_valid_actions(grammar: Grammar,
 
         # OneOf represents a series of expressions, one of which matches the text.
         # Eg. A -> B / C
-        elif isinstance(rhs, OneOf):
-            for option in rhs._unicode_members():  # pylint: disable=protected-access
-                valid_actions[key].add(format_action(key, option,
+        elif isinstance(rhs, OneOf) or key == 'table_name' or key == 'column_name':
+            if isinstance(rhs, Literal): # single table or column case
+                valid_actions[key].add(format_action(key, '"' + rhs.literal + '"',
                                                      keywords_to_uppercase=keywords_to_uppercase))
+            else:
+                for option in rhs._unicode_members():  # pylint: disable=protected-access
+                    valid_actions[key].add(format_action(key, option,
+                                                         keywords_to_uppercase=keywords_to_uppercase))
 
         # A string literal, eg. "A"
         elif isinstance(rhs, Literal):
